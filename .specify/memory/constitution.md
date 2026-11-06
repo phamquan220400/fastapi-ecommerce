@@ -1,50 +1,141 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+Version change: unratified scaffold -> 1.0.0
+Modified principles: none; scaffold placeholders replaced.
+Added sections: Core Principles; Engineering Constraints; Development Workflow; Governance.
+Removed sections: none.
+Deferred items: none.
+-->
+
+# FastAPI E-Commerce Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Correctness of Commerce State
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+- Changes to orders, payments, refunds, subscriptions, inventory, discounts, loyalty points,
+  or gift cards MUST state the affected invariants and test both success and failure paths.
+- Shared inventory and counters MUST be updated atomically, using database constraints,
+  transactions, and row locks where needed. Concurrency-sensitive changes MUST include a
+  PostgreSQL test exercising competing operations.
+- Money and loyalty calculations MUST preserve the existing base-currency accounting and
+  conversion rules. Changes to rounding or conversion MUST include boundary-value tests.
+- Payment- and order-creating requests MUST preserve idempotent replay and user isolation;
+  webhook and worker changes MUST account for duplicate delivery and retries.
+- Domain state changes and their required outbox records MUST commit in the same transaction.
+  An outbox record MUST NOT be described as proof of external delivery when no publisher exists.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Security at Every Boundary
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+- Each new or changed endpoint MUST declare its authentication and authorization requirements,
+  validate input, and test permitted and denied access, including resource ownership where
+  applicable. Public endpoints MUST be explicitly identified in the change.
+- Credentials, tokens, payment details, and personal data MUST NOT be committed or emitted in
+  logs, metrics, traces, or error responses. New external integrations MUST document their
+  credential configuration and failure behavior without exposing secret values.
+- Changes to payment webhooks MUST verify provider authenticity before processing and test
+  invalid signatures and duplicate events. Abuse-sensitive endpoints MUST specify and test
+  their rate-limiting behavior.
+- Security fixes MUST include a regression test or, when automation cannot reproduce the issue,
+  documented reproducible verification and its limitation in the pull request.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Explicit Boundaries and Simple Design
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- Routes MUST handle HTTP concerns and obtain services through dependency injection; services
+  MUST own business rules; CRUD modules MUST own database queries. New model classes MUST be
+  registered for Alembic discovery.
+- A new abstraction, service, external system, or performance optimization MUST identify the
+  concrete problem it solves and the simpler alternative considered in the pull request.
+- Failures MUST be surfaced through the existing error or logging conventions; code MUST NOT
+  silently convert errors into successful responses or conceal invalid input.
+- Performance changes MUST include a reproducible baseline and comparison for the affected
+  operation, and MUST preserve correctness and security tests.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Compatible, Migratable Contracts
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- Public API changes MUST identify affected endpoints, request and response schemas, status
+  codes, authentication requirements, and existing consumers. Additive changes MUST preserve
+  existing behavior unless a breaking change is explicitly approved.
+- A breaking API or event contract change MUST include an approved migration plan, a documented
+  deprecation and removal schedule, a consumer communication plan, and compatibility tests for
+  the supported transition. Emergency exceptions follow the governance exception process.
+- Schema changes MUST use Alembic, preserve the existing migration chain, and include a plan
+  for existing data and rollback or forward recovery. Migrations MUST work on both an existing
+  database and a fresh database.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Observable and Recoverable Operations
+
+- Changes to requests, background jobs, or external integrations MUST expose failures through
+  existing structured logging, metrics, or tracing as appropriate. Logs MUST identify the
+  operation and outcome and include a correlation identifier when available.
+- New or changed asynchronous jobs MUST document their registration, retry and idempotency
+  behavior, terminal failure handling, and operator recovery procedure; tests MUST cover
+  success and failure or retry paths.
+- New infrastructure dependencies MUST document startup and outage behavior, configuration,
+  and recovery steps. Optional services MUST NOT silently become mandatory for unrelated flows.
+
+### VI. Verified Change and Sustainable Maintenance
+
+- Every behavior change MUST include automated tests for the changed contract and relevant
+  failure cases. Bug fixes MUST add a regression test, subject to the documented exception
+  for non-automatable security verification in Principle II.
+- PostgreSQL-specific behavior, transactions, locks, and migrations MUST be tested against
+  PostgreSQL; SQLite or mocks alone MUST NOT be used as evidence for those behaviors.
+- Refactoring MUST preserve externally observable behavior and existing tests. Any intentional
+  behavior change MUST be identified, documented, and tested as a separate contract change.
+- Documentation MUST be updated in the same pull request when setup, configuration, API
+  behavior, operational procedures, or consumer migration steps change.
+
+## Engineering Constraints
+
+- The decision order for competing goals is **correctness, security, simplicity,
+  maintainability, performance optimization, developer convenience**. A pull request MUST
+  identify the conflict and explain the choice against this order; lower-ranked goals MUST
+  NOT override higher-ranked ones. Security requirements remain mandatory.
+- PostgreSQL, SQLAlchemy, Alembic, FastAPI, and the separate ARQ worker are the established
+  runtime boundaries. A proposal that replaces or adds an infrastructure component MUST
+  document operational ownership, deployment, migration, failure modes, and recovery.
+- Use the project's naive-UTC time helper for database timestamps, preserve base-currency
+  storage, and register worker tasks for the intended enqueue or scheduled execution path.
+- Poetry is the dependency source of truth. A dependency addition MUST document its purpose,
+  alternatives including existing dependencies, maintenance and license assessment, security
+  audit result, and runtime or operational impact. Update the lockfile and regenerate the
+  Docker requirements export when affected; do not hand-edit the export.
+
+## Development Workflow
+
+- Every pull request MUST describe its scope, affected invariants and contracts, test evidence,
+  and operational or migration impact. It MUST link to updated documentation or state why
+  none is needed.
+- At least one reviewer other than the author MUST approve each pull request. Review MUST
+  explicitly check applicable principles, security and authorization boundaries, compatibility,
+  migrations, test coverage, and observability; unresolved blocking findings MUST be addressed
+  before merge.
+- Before merge, the project's CI gates MUST pass: Ruff, mypy, the PostgreSQL-backed pytest
+  suite, dependency audit, fresh-database Alembic upgrade, and Docker build and non-root
+  checks. A failed or unavailable gate is not a pass and requires a governance exception.
+- Changes to an existing database schema MUST also provide evidence of migration against a
+  representative existing database, including relevant data transformations.
+- Tests MUST include representative error and boundary cases; concurrency tests MUST verify
+  the resulting invariant rather than only asserting that requests completed.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- This constitution governs future development and pull request review. When existing code
+  does not comply, changes MUST NOT worsen the divergence; the pull request MUST identify
+  affected pre-existing gaps and either address them within scope or link a follow-up issue.
+- Amendments MUST be proposed in a pull request describing the motivation, affected principles,
+  compatibility impact, and migration or adoption plan. At least one reviewer other than the
+  author MUST approve the amendment before merge.
+- Constitution versions follow semantic versioning: MAJOR for backward-incompatible removal
+  or redefinition of governance, MINOR for new principles or materially expanded guidance,
+  and PATCH for non-semantic clarifications. The amendment MUST update the version, amendment
+  date, and sync impact report; the original ratification date MUST remain unchanged.
+- An exception MUST be recorded in the pull request before merge, with the specific rule,
+  reason, risk, compensating controls, owner, expiry date, and linked remediation issue.
+  A reviewer other than the author MUST approve it. Exceptions MUST NOT be treated as a
+  successful test or CI result; expired exceptions require renewed approval or remediation.
+- Reviewers MUST check compliance on every pull request. Material unresolved correctness or
+  security risks block merge; an exception cannot authorize knowingly unsafe behavior.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-11-06 | **Last Amended**: 2026-11-06
