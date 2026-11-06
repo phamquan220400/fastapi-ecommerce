@@ -14,7 +14,7 @@ services:
       - .:/app
     environment:
       - ENV=development
-      - REDIS_URL=${REDIS_URL:-redis://redis-app:6379/0}
+      - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ecommerce}
     env_file:
       - .env
@@ -35,7 +35,7 @@ services:
       - .:/app
     environment:
       - ENV=development
-      - REDIS_URL=${REDIS_URL:-redis://redis-app:6379/0}
+      - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ecommerce}
     env_file:
       - .env
