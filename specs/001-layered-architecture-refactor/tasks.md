@@ -15,8 +15,8 @@ description: "Implementation tasks for the modular layered architecture refactor
 
 **Purpose**: Capture compatibility baselines and decide module ownership before moving code.
 
-- [ ] T001 Record the pre-refactor OpenAPI document, including paths, methods, schemas, statuses, and security metadata, in `specs/001-layered-architecture-refactor/contracts/openapi-baseline.json`.
-- [ ] T002 Inventory current route-to-persistence access, cross-domain imports, transaction/locking invariants, model discovery, and ARQ task names/schedules, retry/idempotency behavior, terminal failure handling, and existing operator recovery procedures; update the ownership and dependency map in `specs/001-layered-architecture-refactor/research.md`.
+- [X] T001 Record the pre-refactor OpenAPI document, including paths, methods, schemas, statuses, and security metadata, in `specs/001-layered-architecture-refactor/contracts/openapi-baseline.json`.
+- [X] T002 Inventory current route-to-persistence access, cross-domain imports, transaction/locking invariants, model discovery, and ARQ task names/schedules, retry/idempotency behavior, terminal failure handling, and existing operator recovery procedures; update the ownership and dependency map in `specs/001-layered-architecture-refactor/research.md`.
 
 ---
 
