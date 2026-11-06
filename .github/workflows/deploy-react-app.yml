@@ -1,0 +1,96 @@
+name: Deploy React UI to S3 and CloudFront
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'fastcomm/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+  BUILD_DIR: ${{ vars.BUILD_DIR || 'dist' }}
+  NODE_VERSION: ${{ vars.NODE_VERSION || '22' }}
+
+jobs:
+  deploy:
+    name: Build and deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate deployment settings
+        shell: bash
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          for name in AWS_ROLE_ARN AWS_REGION S3_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Configure the $name Actions variable before deploying."
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+
+      - name: Check build output
+        shell: bash
+        run: |
+          if [[ ! -d "$BUILD_DIR" ]]; then
+            echo "::error::Build directory '$BUILD_DIR' was not found. Set the BUILD_DIR variable to your app's output directory."
+            exit 1
+          fi
+          if [[ ! -f "$BUILD_DIR/index.html" ]]; then
+            echo "::error::'$BUILD_DIR/index.html' was not found. This workflow expects a single-page React app build."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload site to S3
+        shell: bash
+        run: |
+          aws s3 sync "$BUILD_DIR/" "s3://${S3_BUCKET}/" \
+            --delete \
+            --cache-control 'public,max-age=3600' \
+            --only-show-errors
+
+          # Keep the HTML entry point fresh so clients discover the latest hashed assets.
+          aws s3 cp "$BUILD_DIR/index.html" "s3://${S3_BUCKET}/index.html" \
+            --cache-control 'no-cache, no-store, must-revalidate' \
+            --content-type 'text/html; charset=utf-8' \
+            --only-show-errors
+
+      - name: Invalidate CloudFront cache
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID"
+          --paths '/*'
